@@ -70,7 +70,7 @@ A production-ready, self-hosted Google Drive-style file storage service built wi
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/yourusername/lunariscloud.git
+git clone https://github.com/dylan-xogent/lunariscloud.git
 cd lunariscloud
 ```
 
@@ -228,8 +228,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/yourusername/lunariscloud/issues)
-- 💬 [Discussions](https://github.com/yourusername/lunariscloud/discussions)
+- 🐛 [Issue Tracker](https://github.com/dylan-xogent/lunariscloud/issues)
+- 💬 [Discussions](https://github.com/dylan-xogent/lunariscloud/discussions)
 - 📧 [Email Support](mailto:support@lunariscloud.com)
 
 ## 🙏 Acknowledgments
