@@ -103,6 +103,29 @@ docker-compose exec api pnpm prisma:seed
 4. Enable versioning on the bucket
 5. Set bucket policy for public read access (if needed)
 
+## Linux Deployment (Bare Metal)
+
+1. Install Node.js 18+ and pnpm.
+2. Install PostgreSQL, Redis, MinIO (or another S3-compatible store), and ClamAV.
+3. Copy `env.example` to `.env` and configure values for your environment.
+4. Install dependencies and build the apps:
+   ```bash
+   pnpm install
+   pnpm build
+   ```
+5. Run database migrations and seed data:
+   ```bash
+   pnpm db:migrate
+   pnpm db:seed
+   ```
+6. Start the API, web, and worker services with a process manager such as PM2 or systemd:
+   ```bash
+   pm2 start apps/api/dist/main.js --name api
+   pm2 start apps/web/.next/standalone/server.js --name web
+   pm2 start apps/worker/dist/main.js --name worker
+   ```
+7. Configure the process manager to run on boot (`pm2 save && pm2 startup` or equivalent systemd units).
+
 ## Windows Deployment
 
 ### Option 1: Docker Desktop
@@ -113,23 +136,28 @@ docker-compose exec api pnpm prisma:seed
 
 ### Option 2: Native Windows
 
-1. Install Node.js 18+ and pnpm
-2. Install PostgreSQL and Redis
-3. Install ClamAV for Windows
-4. Configure services to start automatically
-5. Use PM2 for process management:
-
-```bash
-# Install PM2
-npm install -g pm2
-
-# Start services
-pm2 start ecosystem.config.js
-
-# Save PM2 configuration
-pm2 save
-pm2 startup
-```
+1. Install Node.js 18+ and pnpm.
+2. Install PostgreSQL, Redis, and ClamAV for Windows.
+3. Copy `env.example` to `.env` and update values.
+4. Install dependencies and build the apps:
+   ```bash
+   pnpm install
+   pnpm build
+   ```
+5. Apply database migrations and seed:
+   ```bash
+   pnpm db:migrate
+   pnpm db:seed
+   ```
+6. Use [PM2](https://pm2.keymetrics.io/) for process management:
+   ```bash
+   npm install -g pm2
+   pm2 start apps/api/dist/main.js --name api
+   pm2 start apps/web/.next/standalone/server.js --name web
+   pm2 start apps/worker/dist/main.js --name worker
+   pm2 save
+   pm2 startup
+   ```
 
 ## Cloud Deployment
 

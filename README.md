@@ -181,9 +181,10 @@ RATE_LIMIT_DOWNLOAD=120 # Downloads per minute
 ## 🚀 Deployment Options
 
 ### Self-Hosted
-- **Docker Compose** - Single server deployment
-- **Kubernetes** - Scalable container orchestration
+- **Docker Compose** - Single server deployment (Linux, macOS, or Windows)
+- **Linux / macOS** - Native Node.js deployment with PM2 or systemd
 - **Windows** - Native Windows deployment
+- **Kubernetes** - Scalable container orchestration
 
 ### Cloud Platforms
 - **AWS** - ECS/Fargate, EC2, or Lambda
