@@ -1,0 +1,282 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: lunaris_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 30s
+          --health-timeout 20s
+          --health-retries 3
+        ports:
+          - 9000:9000
+        command: server /data --console-address ":9001"
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Type check
+      run: pnpm type-check
+    
+    - name: Lint
+      run: pnpm lint
+    
+    - name: Run tests
+      run: pnpm test
+      env:
+        DATABASE_URL: postgresql://test:test@localhost:5432/lunaris_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-min-32-chars-long
+        API_SECRET: test-api-secret-min-32-chars-long
+        S3_ENDPOINT: http://localhost:9000
+        S3_ACCESS_KEY: minioadmin
+        S3_SECRET_KEY: minioadmin
+        S3_BUCKET: test-bucket
+        SMTP_HOST: localhost
+        SMTP_PORT: 587
+        SMTP_USER: test
+        SMTP_PASS: test
+        SMTP_FROM: test@example.com
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: lunaris_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 30s
+          --health-timeout 20s
+          --health-retries 3
+        ports:
+          - 9000:9000
+        command: server /data --console-address ":9001"
+      
+      clamav:
+        image: clamav/clamav:latest
+        options: >-
+          --health-cmd "nc -z localhost 3310"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+        ports:
+          - 3310:3310
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    
+    - name: Build applications
+      run: |
+        pnpm --filter @lunariscloud/api build
+        pnpm --filter @lunariscloud/web build
+        pnpm --filter @lunariscloud/worker build
+      env:
+        DATABASE_URL: postgresql://test:test@localhost:5432/lunaris_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-min-32-chars-long
+        API_SECRET: test-api-secret-min-32-chars-long
+        S3_ENDPOINT: http://localhost:9000
+        S3_ACCESS_KEY: minioadmin
+        S3_SECRET_KEY: minioadmin
+        S3_BUCKET: test-bucket
+        SMTP_HOST: localhost
+        SMTP_PORT: 587
+        SMTP_USER: test
+        SMTP_PASS: test
+        SMTP_FROM: test@example.com
+        CLAMAV_HOST: localhost
+        CLAMAV_PORT: 3310
+    
+    - name: Setup MinIO bucket
+      run: |
+        # Wait for MinIO to be ready
+        sleep 30
+        # Create bucket (this would need mc client in a real scenario)
+        echo "MinIO setup would go here"
+    
+    - name: Run database migrations
+      run: |
+        cd apps/api
+        pnpm prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test:test@localhost:5432/lunaris_test
+    
+    - name: Install Playwright
+      run: npx playwright install --with-deps
+    
+    - name: Run E2E tests
+      run: pnpm test:e2e
+      env:
+        DATABASE_URL: postgresql://test:test@localhost:5432/lunaris_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-min-32-chars-long
+        API_SECRET: test-api-secret-min-32-chars-long
+        S3_ENDPOINT: http://localhost:9000
+        S3_ACCESS_KEY: minioadmin
+        S3_SECRET_KEY: minioadmin
+        S3_BUCKET: test-bucket
+        SMTP_HOST: localhost
+        SMTP_PORT: 587
+        SMTP_USER: test
+        SMTP_PASS: test
+        SMTP_FROM: test@example.com
+        CLAMAV_HOST: localhost
+        CLAMAV_PORT: 3310
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, e2e]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push API image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./apps/api
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-api:latest
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-api:${{ github.sha }}
+    
+    - name: Build and push Web image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./apps/web
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-web:latest
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-web:${{ github.sha }}
+    
+    - name: Build and push Worker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./apps/worker
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-worker:latest
+          ${{ secrets.DOCKER_USERNAME }}/lunariscloud-worker:${{ github.sha }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "Deployment would happen here"
+        # This would typically involve:
+        # - SSH to production server
+        # - Pull latest images
+        # - Update docker-compose.yml
+        # - Restart services
+        # - Run migrations

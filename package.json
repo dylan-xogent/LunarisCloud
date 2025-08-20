@@ -1,0 +1,37 @@
+{
+  "name": "lunariscloud",
+  "version": "1.0.0",
+  "description": "A self-hosted Google Drive-style file storage service with 15GB free tier",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "build": "pnpm --recursive build",
+    "test": "pnpm --recursive test",
+    "test:e2e": "pnpm --filter @lunariscloud/web run test:e2e",
+    "lint": "pnpm --recursive lint",
+    "format": "prettier --write .",
+    "type-check": "pnpm --recursive type-check",
+    "clean": "pnpm --recursive clean",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "db:migrate": "pnpm --filter @lunariscloud/api prisma:migrate:deploy",
+    "db:seed": "pnpm --filter @lunariscloud/api prisma:seed",
+    "db:studio": "pnpm --filter @lunariscloud/api prisma:studio"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.0.0"
+}

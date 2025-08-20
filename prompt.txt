@@ -1,0 +1,111 @@
+Context: Frontend & core API are done. Now finish ops + safety: worker with ClamAV scanning, expired share cleanup, download-limit enforcement, reconcilers, metrics, rate limiting, health checks, CI, and a production runbook.
+
+1) Background Jobs & Malware Scan
+
+Create a new app apps/worker (Node + TS) that connects to Redis and processes BullMQ queues exported by the API.
+
+Queues:
+
+virusScan: payload { userId, fileId, s3Key, sizeBytes }.
+
+shareCleanup: no payload; deletes expired shares.
+
+reconcile: optional payload { userId? }; recalculates usedBytes by listing S3 under userId/.
+
+Add a clamav service to docker-compose (TCP 3310). Use streaming scan via clamd socket (Do NOT write temp files; stream MinIO object by presigned URL).
+
+API behavior:
+
+On /files/complete, enqueue virusScan. Mark file status = processing. If clean, mark ready. If infected, set trashedAt = now(), subtract sizeBytes from usedBytes, log AuditLog, increment virus_detections_total.
+
+Hourly CRON in API (or enqueue via worker) runs shareCleanup to delete expired rows.
+
+Nightly CRON runs reconcile and permanently deletes items in Trash older than 30 days.
+
+2) Share Download Limits & Abuse Controls
+
+Extend Share model with:
+
+maxDownloads (Int?).
+
+downloadCount (Int, default 0).
+
+Public download flow increments downloadCount atomically; block when downloadCount >= maxDownloads. Return 410 Gone for expired/consumed shares.
+
+Add per-IP + per-user rate limits:
+
+Auth: 5/min/IP
+
+Upload init/complete: 60/min/user
+
+Download (public share): 120/min/IP
+
+Admin endpoints (future): 30/min/IP
+
+Login throttle: after 5 failures in 10 min for same email + IP, lock for 15 min.
+
+3) Health, Metrics, and Logs
+
+GET /health JSON:
+
+{ db: up/down, redis: up/down, s3: up/down, clamav: up/down }.
+
+GET /metrics (Prometheus):
+
+Counters: uploads_started_total, uploads_completed_total, upload_bytes_total, downloads_total, virus_detections_total, shares_active_total.
+
+Histograms: request_duration_seconds{route,method,code}, upload_part_duration_seconds, clamav_scan_seconds.
+
+Add structured JSON logs (pino or winston) with request id, user id, route, latency, status.
+
+4) Robust Env Validation
+
+Create apps/api/src/config/env.ts using zod:
+
+DATABASE_URL, JWT_SECRET, REDIS_URL,
+S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET,
+PUBLIC_MAX_BYTES, SMTP_URL, EMAIL_FROM,
+APP_URL, API_URL, CLAMAV_HOST, CLAMAV_PORT
+
+
+Import at bootstrap; fail fast with readable errors.
+
+5) Seed & Admin
+
+Seed script:
+
+Creates admin user from ADMIN_EMAIL/ADMIN_PASSWORD.
+
+Optional: on first login for any user, create “Welcome” folder.
+
+Admin-only /admin/health endpoint that returns /health plus counts (users, files, total bytes).
+
+6) CI + Test
+
+GitHub Actions workflow:
+
+Matrix Node 20.x/22.x.
+
+pnpm i --frozen-lockfile, typecheck, lint.
+
+Spin up Postgres/Redis/MinIO services for API tests (or use testcontainers).
+
+Run unit tests and Playwright E2E (headless) against a dev compose stack.
+
+Add Playwright smoke tests:
+
+Register → verify (mock email) → login.
+
+Create folder, upload two files, rename, move.
+
+Create share with password and maxDownloads=1; download once (200), second time (410).
+
+Delete to Trash → restore.
+
+Upload until quota is exceeded → expect 413/blocked.
+
+7) Runbook (docs/DEPLOY.md)
+
+Include: first boot steps, creating MinIO bucket & enabling versioning, SMTP test, admin seeding, rotating JWT_SECRET, how to restore from DB dump + ZFS snapshot, and low-space alerts.
+
+Please implement everything above with production-grade error handling, typed responses (zod), and thorough unit tests for quota + share limits + scanning outcomes.

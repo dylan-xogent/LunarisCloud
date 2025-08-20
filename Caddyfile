@@ -1,0 +1,25 @@
+files.lunaris.win {
+  encode gzip
+  reverse_proxy web:3000
+}
+
+api.lunaris.win {
+  encode gzip
+  reverse_proxy api:4000
+}
+
+# Optional: expose MinIO console behind auth/IP allowlist only
+minio.lunaris.win {
+  reverse_proxy minio:9001
+}
+
+# Development fallback
+localhost {
+  encode gzip
+  reverse_proxy web:3000
+}
+
+:4000 {
+  encode gzip
+  reverse_proxy api:4000
+}

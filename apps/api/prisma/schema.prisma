@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  usedBytes     BigInt   @default(0)
+  plan          Plan     @default(FREE)
+  
+  files         File[]
+  folders       Folder[]
+  shares        Share[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?  // null = root
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  children  Folder[] @relation("FolderToFolder")
+  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id], onDelete: Cascade)
+  files     File[]
+  shares    Share[]
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("folders")
+}
+
+model File {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folderId  String?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  name      String
+  sizeBytes BigInt
+  mime      String
+  etag      String   // S3 ETag
+  s3Key     String   // e.g. userId/uuid/filename
+  version   Int      @default(1)
+  trashedAt DateTime?
+  scanStatus String  @default("pending") // pending, processing, clean, infected, failed
+  virusName  String?
+  scanTime   Int?    // milliseconds
+  createdAt DateTime @default(now())
+  
+  shares    Share[]
+
+  @@map("files")
+}
+
+model Share {
+  id           String   @id @default(cuid())
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fileId       String?
+  file         File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  passwordHash String?
+  expiresAt    DateTime
+  maxDownloads Int?
+  downloadCount Int     @default(0)
+  createdAt    DateTime @default(now())
+
+  @@map("shares")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ip        String?
+  action    String
+  targetId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("email_verifications")
+}
